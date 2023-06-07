@@ -1,4 +1,5 @@
 use browser::State;
+use wgpu_text::section::{Section, Text};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -12,9 +13,15 @@ fn main() {
 pub async fn run() {
     env_logger::init();
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = WindowBuilder::new()
+        .with_title("benser")
+        .build(&event_loop)
+        .unwrap();
 
     let mut state = State::new(window).await;
+
+    // Directly implemented from glyph_brush.
+    let section = Section::default().add_text(Text::new("Hello World"));
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(window_id) if window_id == state.window().id() => {

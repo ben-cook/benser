@@ -1,4 +1,9 @@
 use wgpu::TextureFormat;
+use wgpu_text::{
+    font::FontArc,
+    section::{Section, Text},
+    BrushBuilder, TextBrush,
+};
 use winit::{event::WindowEvent, window::Window};
 
 pub struct State {
@@ -8,6 +13,7 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     window: Window,
+    pub brush: TextBrush,
 }
 
 impl State {
@@ -67,6 +73,15 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        let font = FontArc::try_from_slice(include_bytes!("../fonts/OpenSans.ttf")).unwrap();
+
+        let brush = BrushBuilder::using_font(font).build(
+            &device,
+            config.width,
+            config.height,
+            surface_format,
+        );
+
         Self {
             window,
             surface,
@@ -74,6 +89,7 @@ impl State {
             queue,
             config,
             size,
+            brush,
         }
     }
 
@@ -87,6 +103,11 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.brush.resize_view(
+                self.config.width as f32,
+                self.config.height as f32,
+                &self.queue,
+            )
         }
     }
 
@@ -107,8 +128,16 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
+        let section = Section::default()
+            .add_text(Text::new("Hello World").with_scale(80.0))
+            .with_screen_position((300.0, 300.0));
+
+        self.brush
+            .queue(&self.device, &self.queue, vec![&section])
+            .unwrap();
+
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -125,6 +154,7 @@ impl State {
                 })],
                 depth_stencil_attachment: None,
             });
+            self.brush.draw(&mut render_pass);
         }
 
         // submit will accept anything that implements IntoIter
