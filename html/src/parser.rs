@@ -1,20 +1,72 @@
 use std::collections::HashMap;
 
-use crate::dom::{AttrMap, Node};
+use crate::{
+    dom::{AttrMap, Node},
+    encoding::{Confidence, Encoding},
+    parse_state::ParseState,
+};
 
-pub struct Parser {
-    pos: usize,
+pub struct Parser<'a> {
+    // Properties from the specification
+    encoding: Encoding,
+    confidence: Confidence,
+    parse_state: ParseState<'a>,
+    /// Parsers have a script nesting level, which must be initially set to zero.
+    ///
+    /// https://html.spec.whatwg.org/multipage/parsing.html#overview-of-the-parsing-model
+    script_nesting_level: u32,
+    /// Parsers have a parser pause flag, which must be initially set to false.
+    ///
+    /// https://html.spec.whatwg.org/multipage/parsing.html#overview-of-the-parsing-model
+    pause_flag: bool,
+
+    // Properties for internal use
     input: String,
+    pos: usize,
 }
 
-impl Parser {
-    /// Parse an HTML document and return the root element.
-    pub fn parse(source: String) -> Node {
-        let mut nodes = Parser {
+impl Parser<'_> {
+    pub fn from_string(input: String) -> Self {
+        Parser {
+            input,
             pos: 0,
-            input: source,
+            encoding: Encoding::Utf8,
+            confidence: Confidence::Certain,
+            parse_state: ParseState::default(),
+            script_nesting_level: 0,
+            pause_flag: false,
         }
-        .parse_nodes();
+    }
+
+    pub fn from_bytes_utf8(input: Vec<u8>) -> Self {
+        Parser {
+            input: String::from_utf8(input).unwrap(),
+            pos: 0,
+            encoding: Encoding::Utf8,
+            confidence: Confidence::Certain,
+            parse_state: ParseState::default(),
+            script_nesting_level: 0,
+            pause_flag: false,
+        }
+    }
+
+    pub fn from_bytes_utf16(input: Vec<u16>) -> Self {
+        Parser {
+            input: String::from_utf16(input.as_slice()).unwrap(),
+            pos: 0,
+            encoding: Encoding::Utf16,
+            confidence: Confidence::Certain,
+            parse_state: ParseState::default(),
+            script_nesting_level: 0,
+            pause_flag: false,
+        }
+    }
+
+    /// Parse an HTML document and return the root element.
+    pub fn run(&mut self) -> Node {
+        // https://html.spec.whatwg.org/multipage/parsing.html#overview-of-the-parsing-model
+
+        let mut nodes = self.parse_nodes();
 
         // If the document contains a root element, just return it. Otherwise, create one.
         if nodes.len() == 1 {
@@ -23,6 +75,7 @@ impl Parser {
             Node::elem("html".to_string(), HashMap::new(), nodes)
         }
     }
+
     /// Read the current character without consuming it.
     fn next_char(&self) -> char {
         self.input[self.pos..].chars().next().unwrap()
@@ -154,12 +207,12 @@ mod tests {
     #[test]
     fn basic_tests() {
         assert_eq!(
-            Parser::parse("<div></div>".to_string()),
+            Parser::from_string("<div></div>".to_string()).run(),
             Node::elem("div".to_string(), HashMap::new(), Vec::new())
         );
 
         assert_eq!(
-            Parser::parse("<html><body>Hello, world!</body></html>".to_string()),
+            Parser::from_string("<html><body>Hello, world!</body></html>".to_string()).run(),
             Node::elem(
                 "html".to_string(),
                 HashMap::new(),
@@ -179,7 +232,7 @@ mod tests {
         attribute_map.insert("width".to_string(), "100%".to_string());
 
         assert_eq!(
-            Parser::parse(r#"<div height="3" width="100%"></div>"#.to_string()),
+            Parser::from_string(r#"<div height="3" width="100%"></div>"#.to_string()).run(),
             Node::elem("div".to_string(), attribute_map, Vec::new())
         );
     }
@@ -187,7 +240,7 @@ mod tests {
     #[test]
     fn adds_root_node() {
         assert_eq!(
-            Parser::parse("<h1>Heading 1</h1> <h2>Heading 2</h2>".to_string()),
+            Parser::from_string("<h1>Heading 1</h1> <h2>Heading 2</h2>".to_string()).run(),
             Node::elem(
                 "html".to_string(),
                 HashMap::new(),

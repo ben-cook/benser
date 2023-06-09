@@ -6,5 +6,6 @@ edition = "2021"
 
 [dependencies]
 benser = { path = "../benser" }
+html = { path = "../html" }
 clap = { version = "4.0.18", features = ["derive"] }
 image = "0.24.4"
