@@ -2,10 +2,10 @@ use std::fs::File;
 use std::{error::Error, fs};
 
 use benser::css::Parser as css_parser;
-use benser::html::Parser as html_parser;
 use benser::layout::{layout_tree, Dimensions};
 use benser::painting;
 use benser::style::style_tree;
+use html::parser::Parser as html_parser;
 
 use benser_cli::Args;
 use clap::Parser;
@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Parsing and rendering:
-    let root_node = html_parser::parse(html_source);
+    let root_node = html_parser::from_string(html_source).run();
     let stylesheet = css_parser::parse(css_source);
     let style_root = style_tree(&root_node, &stylesheet);
     let layout_root = layout_tree(&style_root, viewport);
