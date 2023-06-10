@@ -1,10 +1,10 @@
 use std::fs;
 use std::fs::File;
-use std::num::NonZeroU32;
+
 
 use benser::css::Parser as css_parser;
 use benser::layout::{layout_tree, Dimensions};
-use benser::painting;
+use paint::paint;
 use benser::style::style_tree;
 use html::parser::Parser as html_parser;
 
@@ -48,7 +48,7 @@ async fn run() {
     File::create(&args.output).unwrap();
 
     // Write to the file
-    let canvas = painting::paint(&layout_root, viewport.content);
+    let canvas = paint(&layout_root, viewport.content);
     let (w, h) = (canvas.width as u32, canvas.height as u32);
 
     // Set up wgpu

@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::css::Color;
+use benser::css::Color;
 
 use super::DisplayCommand;
 

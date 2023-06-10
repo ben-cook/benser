@@ -2,9 +2,9 @@ mod canvas;
 
 pub use canvas::Canvas;
 
-use crate::css::{Color, Value};
+use benser::css::{Color, Value};
 
-use crate::layout::{BoxType, LayoutBox, Rect};
+use benser::layout::{BoxType, LayoutBox, Rect};
 
 type DisplayList = Vec<DisplayCommand>;
 

@@ -1,2 +1,2 @@
 [workspace]
-members = ["benser", "benser-cli", "browser", "html"]
+members = ["benser", "benser-cli", "browser", "html", "paint"]
