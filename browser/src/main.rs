@@ -10,7 +10,7 @@ fn main() {
     pollster::block_on(run());
 }
 
-pub async fn run() {
+async fn run() {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
