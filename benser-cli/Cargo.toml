@@ -15,3 +15,4 @@ pollster = "0.3.0"
 wgpu = "0.16.1"
 wgpu_text = "0.8.1"
 futures-intrusive = "0.5.0"
+bytemuck = { version = "1.13.1", features = ["derive"] }

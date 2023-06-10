@@ -8,9 +8,10 @@ use benser::painting;
 use benser::style::style_tree;
 use html::parser::Parser as html_parser;
 
-use benser_cli::Args;
+use benser_cli::{Args, Vertex};
 use clap::Parser;
 use image::ImageFormat;
+use wgpu::util::DeviceExt;
 
 fn main() {
     pollster::block_on(run());
@@ -120,7 +121,7 @@ async fn run() {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: "vs_main",
-            buffers: &[],
+            buffers: &[Vertex::desc()],
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -152,6 +153,27 @@ async fn run() {
     let mut encoder =
         device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
+    const VERTICES: &[Vertex] = &[
+        Vertex {
+            position: [0.0, 0.5, 0.0],
+            color: [1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, -0.5, 0.0],
+            color: [0.0, 1.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, -0.5, 0.0],
+            color: [0.0, 0.0, 1.0],
+        },
+    ];
+
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Vertex Buffer"),
+        contents: bytemuck::cast_slice(VERTICES),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
     {
         let render_pass_desc = wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -173,7 +195,8 @@ async fn run() {
         let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
 
         render_pass.set_pipeline(&render_pipeline);
-        render_pass.draw(0..3, 0..1);
+        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        render_pass.draw(0..VERTICES.len() as u32, 0..1);
     }
 
     encoder.copy_texture_to_buffer(
