@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::wgpu_util::get_gpu_instance;
 use benser::css::Parser as css_parser;
 use benser::layout::{layout_tree, Dimensions};
 use benser::style::style_tree;
@@ -12,7 +13,7 @@ use wgpu::util::DeviceExt;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
-    pub color: [f32; 3],
+    pub color: [f32; 4],
 }
 
 impl Vertex {
@@ -27,9 +28,9 @@ impl Vertex {
                     format: wgpu::VertexFormat::Float32x3,
                 },
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         }
@@ -71,11 +72,7 @@ pub async fn run(args: Args) {
     );
 
     // Set up wgpu
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::all(),
-        dx12_shader_compiler: Default::default(),
-    });
-
+    let instance = get_gpu_instance();
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
@@ -84,7 +81,6 @@ pub async fn run(args: Args) {
         })
         .await
         .unwrap();
-
     let (device, queue) = adapter
         .request_device(&Default::default(), None)
         .await
@@ -182,15 +178,15 @@ pub async fn run(args: Args) {
     const VERTICES: &[Vertex] = &[
         Vertex {
             position: [0.0, 0.5, 0.0],
-            color: [1.0, 0.0, 0.0],
+            color: [1.0, 0.0, 0.0, 1.0],
         },
         Vertex {
             position: [-0.5, -0.5, 0.0],
-            color: [0.0, 1.0, 0.0],
+            color: [0.0, 1.0, 0.0, 1.0],
         },
         Vertex {
             position: [0.5, -0.5, 0.0],
-            color: [0.0, 0.0, 1.0],
+            color: [0.0, 0.0, 1.0, 1.0],
         },
     ];
 
@@ -265,7 +261,7 @@ pub async fn run(args: Args) {
         let data = buffer_slice.get_mapped_range();
 
         use image::{ImageBuffer, Rgba};
-        let mut buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
             round_up_to_multiple(texture_width, 256),
             round_up_to_multiple(texture_height, 256),
             data,

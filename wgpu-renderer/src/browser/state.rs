@@ -1,4 +1,10 @@
-use wgpu::TextureFormat;
+use crate::{file_output::Vertex, wgpu_util::get_gpu_instance};
+use benser::layout::Rect;
+use lyon::{
+    geom::{euclid::Point2D, Box2D},
+    lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
+};
+use wgpu::{util::DeviceExt, TextureFormat};
 use wgpu_text::{
     font::FontArc,
     section::{Section, Text},
@@ -12,20 +18,16 @@ pub struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
-    pub brush: TextBrush,
+    render_pipeline: wgpu::RenderPipeline,
+    lyon_buffer: VertexBuffers<Vertex, u16>,
+    pub window_size: winit::dpi::PhysicalSize<u32>,
+    pub text_brush: TextBrush,
 }
 
 impl State {
     pub async fn new(window: Window) -> Self {
         let size = window.inner_size();
-
-        // The instance is a handle to our GPU
-        // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            dx12_shader_compiler: Default::default(),
-        });
+        let instance = get_gpu_instance();
 
         // The surface needs to live as long as the window that created it.
         // State owns the window so this should be safe.
@@ -39,16 +41,8 @@ impl State {
             })
             .await
             .unwrap();
-
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
-                    label: None,
-                },
-                None,
-            )
+            .request_device(&Default::default(), None)
             .await
             .unwrap();
 
@@ -67,11 +61,43 @@ impl State {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: surface_caps.present_modes[0],
+            present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
         surface.configure(&device, &config);
+
+        let shader = device.create_shader_module(wgpu::include_wgsl!("../shaders/shader.wgsl"));
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format.into(),
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
 
         let font = FontArc::try_from_slice(include_bytes!("../fonts/OpenSans.ttf")).unwrap();
 
@@ -82,14 +108,18 @@ impl State {
             surface_format,
         );
 
+        let lyon_buffer: VertexBuffers<Vertex, u16> = VertexBuffers::new();
+
         Self {
             window,
             surface,
             device,
             queue,
+            render_pipeline,
+            lyon_buffer,
             config,
-            size,
-            brush,
+            window_size: size,
+            text_brush: brush,
         }
     }
 
@@ -99,11 +129,11 @@ impl State {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
+            self.window_size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-            self.brush.resize_view(
+            self.text_brush.resize_view(
                 self.config.width as f32,
                 self.config.height as f32,
                 &self.queue,
@@ -117,9 +147,30 @@ impl State {
 
     pub fn update(&mut self) {}
 
+    /// Draw a filled rectangle
+    fn draw_rectangle(&mut self, rect: Rect, color: [f32; 4]) {
+        let min = point(rect.x, rect.y, self.window_size.into());
+        let max = point(
+            rect.x + rect.width,
+            rect.y + rect.height,
+            self.window_size.into(),
+        );
+        let mut fill_tessellator = FillTessellator::new();
+        fill_tessellator
+            .tessellate_rectangle(
+                &Box2D::new(Point2D::from(min), Point2D::from(max)),
+                &FillOptions::default(),
+                &mut BuffersBuilder::new(&mut self.lyon_buffer, |vertex: FillVertex| Vertex {
+                    position: [vertex.position().x, vertex.position().y, 0.0],
+                    color,
+                }),
+            )
+            .unwrap();
+    }
+
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
-        let view = output
+        let output_texture = self.surface.get_current_texture()?;
+        let view = output_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self
@@ -128,17 +179,47 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
+        // Some dummy text
         let section = Section::default()
             .add_text(Text::new("Hello World").with_scale(80.0))
             .with_screen_position((300.0, 300.0));
 
-        self.brush
+        // Text
+        self.text_brush
             .queue(&self.device, &self.queue, vec![&section])
             .unwrap();
 
+        // Lyon
+        self.lyon_buffer.indices.clear();
+        self.lyon_buffer.vertices.clear();
+        // Dummy rect
+        self.draw_rectangle(
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                height: 100.0,
+                width: 100.0,
+            },
+            [0.4, 0.3, 0.8, 1.0],
+        );
+        let vertex_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&self.lyon_buffer.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&self.lyon_buffer.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Main Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -154,13 +235,28 @@ impl State {
                 })],
                 depth_stencil_attachment: None,
             });
-            self.brush.draw(&mut render_pass);
+            self.text_brush.draw(&mut render_pass);
+
+            // Draw lyon elements
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_vertex_buffer(0, vertex_buf.slice(..));
+            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.lyon_buffer.indices.len() as u32, 0, 0..1);
         }
 
         // submit will accept anything that implements IntoIter
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.queue.submit(Some(encoder.finish()));
+        output_texture.present();
 
         Ok(())
     }
+}
+
+// Translates points from pixel coordinates to wgpu coordinates
+pub fn point(x: f32, y: f32, screen: (f32, f32)) -> [f32; 2] {
+    let scale_x = 2. / screen.0;
+    let scale_y = 2. / screen.1;
+    let new_x = -1. + (x * scale_x);
+    let new_y = 1. - (y * scale_y);
+    [new_x, new_y]
 }
