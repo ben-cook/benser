@@ -1,4 +1,4 @@
-use browser::State;
+use wgpu_renderer::State;
 use wgpu_text::section::{Section, Text};
 use winit::{
     event::*,
