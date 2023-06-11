@@ -1,16 +1,12 @@
-use std::fs;
-use std::fs::File;
-
-
 use benser::css::Parser as css_parser;
 use benser::layout::{layout_tree, Dimensions};
-use paint::paint;
 use benser::style::style_tree;
-use html::parser::Parser as html_parser;
-
 use benser_cli::{Args, Vertex};
 use clap::Parser;
-use image::ImageFormat;
+use html::parser::Parser as html_parser;
+use image::{ImageFormat, Rgb};
+use std::fs;
+use std::fs::File;
 use wgpu::util::DeviceExt;
 
 fn main() {
@@ -30,12 +26,12 @@ async fn run() {
     if let Some(viewport_width) = args.viewport_width {
         viewport.content.width = viewport_width;
     } else {
-        viewport.content.width = 800.0;
+        viewport.content.width = 500.0;
     }
     if let Some(viewport_height) = args.viewport_height {
         viewport.content.height = viewport_height;
     } else {
-        viewport.content.height = 600.0;
+        viewport.content.height = 256.0;
     }
 
     // Parsing and rendering:
@@ -48,8 +44,11 @@ async fn run() {
     File::create(&args.output).unwrap();
 
     // Write to the file
-    let canvas = paint(&layout_root, viewport.content);
-    let (w, h) = (canvas.width as u32, canvas.height as u32);
+    // let canvas = paint(&layout_root, viewport.content);
+    let (texture_width, texture_height) = (
+        viewport.content.width as u32,
+        viewport.content.height as u32,
+    );
 
     // Set up wgpu
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -71,15 +70,18 @@ async fn run() {
         .await
         .unwrap();
 
-    // Create texture
-    let texture_size = 256u32;
+    let texture_extent3d = wgpu::Extent3d {
+        width: texture_width,
+        height: texture_height,
+        depth_or_array_layers: 1,
+    };
+
+    dbg!(&texture_width);
+    dbg!(&texture_height);
+    dbg!(&texture_extent3d);
 
     let texture_desc = wgpu::TextureDescriptor {
-        size: wgpu::Extent3d {
-            width: texture_size,
-            height: texture_size,
-            depth_or_array_layers: 1,
-        },
+        size: texture_extent3d,
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -94,7 +96,11 @@ async fn run() {
     // Create output buffer
     let u32_size = std::mem::size_of::<u32>() as u32;
 
-    let output_buffer_size = (u32_size * texture_size * texture_size) as wgpu::BufferAddress;
+    let output_buffer_size = (u32_size
+        * round_up_to_multiple(texture_width, 256)
+        * round_up_to_multiple(texture_height, 256))
+        as wgpu::BufferAddress;
+    dbg!(&output_buffer_size);
     let output_buffer_desc = wgpu::BufferDescriptor {
         size: output_buffer_size,
         usage: wgpu::BufferUsages::COPY_DST
@@ -199,6 +205,11 @@ async fn run() {
         render_pass.draw(0..VERTICES.len() as u32, 0..1);
     }
 
+    let bytes_per_row = u32_size * texture_width;
+    let bytes_per_row = round_up_to_multiple(bytes_per_row, 256);
+
+    dbg!(bytes_per_row);
+
     encoder.copy_texture_to_buffer(
         wgpu::ImageCopyTexture {
             aspect: wgpu::TextureAspect::All,
@@ -210,8 +221,8 @@ async fn run() {
             buffer: &output_buffer,
             layout: wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(u32_size * texture_size),
-                rows_per_image: Some(texture_size),
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(round_up_to_multiple(texture_height, 256)),
             },
         },
         texture_desc.size,
@@ -234,8 +245,12 @@ async fn run() {
         let data = buffer_slice.get_mapped_range();
 
         use image::{ImageBuffer, Rgba};
-        let buffer =
-            ImageBuffer::<Rgba<u8>, _>::from_raw(texture_size, texture_size, data).unwrap();
+        let mut buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            round_up_to_multiple(texture_width, 256),
+            round_up_to_multiple(texture_height, 256),
+            data,
+        )
+        .unwrap();
 
         buffer
             .save_with_format(&args.output, ImageFormat::Png)
@@ -243,4 +258,28 @@ async fn run() {
     }
 
     output_buffer.unmap();
+}
+
+/// Round up a number to the nearest multiple
+fn round_up_to_multiple(number: u32, multiple: u32) -> u32 {
+    if multiple == 0 {
+        return number;
+    }
+    let remainder = number % multiple;
+    if remainder == 0 {
+        return number;
+    }
+    number + multiple - remainder
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rounding() {
+        assert_eq!(round_up_to_multiple(128, 256), 256);
+        assert_eq!(round_up_to_multiple(256, 256), 256);
+        assert_eq!(round_up_to_multiple(500, 256), 512);
+    }
 }

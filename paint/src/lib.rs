@@ -1,19 +1,16 @@
 mod canvas;
 
-pub use canvas::Canvas;
-
 use benser::css::{Color, Value};
-
 use benser::layout::{BoxType, LayoutBox, Rect};
+pub use canvas::Canvas;
 
 type DisplayList = Vec<DisplayCommand>;
 
 pub enum DisplayCommand {
     SolidColor(Color, Rect),
-    // insert more commands here
 }
 
-// Paint a tree of LayoutBoxes to an array of pixels.
+// Paint a tree of LayoutBoxes to a texture ? surface?
 pub fn paint(layout_root: &LayoutBox, bounds: Rect) -> Canvas {
     let display_list = build_display_list(layout_root);
     let mut canvas = Canvas::new(bounds.width as usize, bounds.height as usize);
