@@ -1,22 +1,42 @@
+use crate::args::Args;
 use benser::css::Parser as css_parser;
 use benser::layout::{layout_tree, Dimensions};
 use benser::style::style_tree;
-use benser_cli::{Args, Vertex};
-use clap::Parser;
 use html::parser::Parser as html_parser;
-use image::{ImageFormat, Rgb};
+use image::ImageFormat;
 use std::fs;
 use std::fs::File;
 use wgpu::util::DeviceExt;
 
-fn main() {
-    pollster::block_on(run());
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
 }
 
-async fn run() {
-    env_logger::init();
-    let args = Args::parse();
+impl Vertex {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
 
+pub async fn run(args: Args) {
     // Read input files
     let css_source = fs::read_to_string(args.css_file).unwrap();
     let html_source = fs::read_to_string(args.html_file).unwrap();
@@ -41,7 +61,7 @@ async fn run() {
     let layout_root = layout_tree(&style_root, viewport);
 
     // Create the output file:
-    File::create(&args.output).unwrap();
+    File::create(&args.output.clone().unwrap()).unwrap();
 
     // Write to the file
     // let canvas = paint(&layout_root, viewport.content);
@@ -253,7 +273,7 @@ async fn run() {
         .unwrap();
 
         buffer
-            .save_with_format(&args.output, ImageFormat::Png)
+            .save_with_format(&args.output.clone().unwrap(), ImageFormat::Png)
             .unwrap();
     }
 
