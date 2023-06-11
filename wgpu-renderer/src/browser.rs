@@ -70,12 +70,12 @@ pub async fn run(args: Args) {
 }
 
 pub struct State {
+    window: Window,
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
-    window: Window,
     pub brush: TextBrush,
 }
 
@@ -136,7 +136,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let font = FontArc::try_from_slice(include_bytes!("../fonts/OpenSans.ttf")).unwrap();
+        let font = FontArc::try_from_slice(include_bytes!("fonts/OpenSans.ttf")).unwrap();
 
         let brush = BrushBuilder::using_font(font).build(
             &device,
