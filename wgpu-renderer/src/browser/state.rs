@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use crate::{file_output::Vertex, wgpu_util::get_gpu_instance};
-use benser::layout::{layout_tree, Dimensions, Rect};
+use benser::layout::{layout_tree, Dimensions, LayoutBox, Rect};
 use benser::style::StyledNode;
 use lyon::{
     geom::{euclid::Point2D, Box2D},
     lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
 };
+use paint::{build_display_list, DisplayCommand};
 use wgpu::{util::DeviceExt, TextureFormat};
 use wgpu_text::{
     font::FontArc,
@@ -173,6 +174,19 @@ impl State {
             .unwrap();
     }
 
+    fn paint(&mut self, style_root: Arc<StyledNode>, viewport: Dimensions) {
+        let layout_root = layout_tree(&self.root_node, viewport);
+
+        let display_commands = build_display_list(&layout_root);
+        for command in display_commands {
+            match command {
+                DisplayCommand::SolidColor(color, rect) => {
+                    self.draw_rectangle(rect, color.as_float())
+                }
+            }
+        }
+    }
+
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output_texture = self.surface.get_current_texture()?;
         let view = output_texture
@@ -201,17 +215,8 @@ impl State {
         let mut viewport = Dimensions::default();
         viewport.content.height = output_texture.texture.height() as f32;
         viewport.content.width = output_texture.texture.width() as f32;
-        let layout_root = layout_tree(&self.root_node, viewport);
+        self.paint(self.root_node.clone(), viewport);
 
-        self.draw_rectangle(
-            Rect {
-                x: 100.0,
-                y: 100.0,
-                height: 100.0,
-                width: 100.0,
-            },
-            [0.4, 0.3, 0.8, 1.0],
-        );
         let vertex_buf = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {

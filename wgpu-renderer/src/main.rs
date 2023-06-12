@@ -1,5 +1,5 @@
+use benser::css::Parser as css_parser;
 use benser::style::style_tree;
-use benser::{css::Parser as css_parser, style::StyledNode};
 use clap::Parser;
 use html::parser::Parser as html_parser;
 use std::fs;
@@ -20,6 +20,6 @@ fn main() {
         let stylesheet = css_parser::parse(&css_source);
         let style_root = style_tree(&root_node, &stylesheet);
 
-        pollster::block_on(browser::run(args, Arc::new(style_root)));
+        pollster::block_on(browser::run(Arc::new(style_root)));
     }
 }

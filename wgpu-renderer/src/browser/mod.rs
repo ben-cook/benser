@@ -13,7 +13,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-pub async fn run(args: Args, style_root: Arc<StyledNode>) {
+pub async fn run(style_root: Arc<StyledNode>) {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("benser")
