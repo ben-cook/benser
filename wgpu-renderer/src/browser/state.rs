@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{file_output::Vertex, wgpu_util::get_gpu_instance};
 use benser::layout::{layout_tree, Dimensions, Rect};
 use benser::style::StyledNode;
@@ -13,7 +15,7 @@ use wgpu_text::{
 };
 use winit::{event::WindowEvent, window::Window};
 
-pub struct State<'a> {
+pub struct State {
     window: Window,
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -23,11 +25,11 @@ pub struct State<'a> {
     lyon_buffer: VertexBuffers<Vertex, u16>,
     pub window_size: winit::dpi::PhysicalSize<u32>,
     pub text_brush: TextBrush,
-    root_node: StyledNode<'a>,
+    root_node: Arc<StyledNode>,
 }
 
-impl<'a> State<'a> {
-    pub async fn new(window: Window, root_node: StyledNode<'a>) -> State<'a> {
+impl State {
+    pub async fn new(window: Window, root_node: Arc<StyledNode>) -> State {
         let size = window.inner_size();
         let instance = get_gpu_instance();
 
@@ -122,7 +124,7 @@ impl<'a> State<'a> {
             config,
             window_size: size,
             text_brush: brush,
-            root_node: root_node,
+            root_node,
         }
     }
 

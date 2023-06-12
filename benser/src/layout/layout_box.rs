@@ -21,7 +21,7 @@ impl<'a> LayoutBox<'a> {
         }
     }
 
-    fn get_style_node(&self) -> &'a StyledNode<'a> {
+    fn get_style_node(&self) -> &'a StyledNode {
         match self.box_type {
             BoxType::BlockNode(node) | BoxType::InlineNode(node) => node,
             BoxType::AnonymousBlock => panic!("Anonymous block box has no style node"),
