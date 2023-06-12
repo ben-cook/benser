@@ -1,11 +1,8 @@
 mod state;
 
-use std::sync::Arc;
-
-use crate::args::Args;
-
 use benser::style::StyledNode;
 use state::State;
+use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::{
     event::*,
