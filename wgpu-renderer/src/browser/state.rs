@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{file_output::Vertex, wgpu_util::get_gpu_instance};
 use benser::layout::{layout_tree, Dimensions, LayoutBox, Rect};
 use benser::style::StyledNode;
+use log::debug;
 use lyon::{
     geom::{euclid::Point2D, Box2D},
     lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
@@ -19,6 +20,7 @@ use winit::{event::WindowEvent, window::Window};
 pub struct State {
     window: Window,
     surface: wgpu::Surface,
+    surface_format: wgpu::TextureFormat,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -52,6 +54,7 @@ impl State {
             .unwrap();
 
         let surface_caps = surface.get_capabilities(&adapter);
+        debug!("surface capabilities: {surface_caps:?}");
         // Shader code in this tutorial assumes an sRGB surface texture. Using a different
         // one will result all the colors coming out darker. If you want to support non
         // sRGB surfaces, you'll need to account for that when drawing to the frame.
@@ -118,6 +121,7 @@ impl State {
         Self {
             window,
             surface,
+            surface_format,
             device,
             queue,
             render_pipeline,
@@ -174,15 +178,19 @@ impl State {
             .unwrap();
     }
 
-    fn paint(&mut self, style_root: Arc<StyledNode>, viewport: Dimensions) {
+    fn paint(&mut self, viewport: Dimensions) {
         let layout_root = layout_tree(&self.root_node, viewport);
 
         let display_commands = build_display_list(&layout_root);
         for command in display_commands {
             match command {
-                DisplayCommand::SolidColor(color, rect) => {
-                    self.draw_rectangle(rect, color.as_float())
-                }
+                DisplayCommand::SolidColor(color, rect) => self.draw_rectangle(
+                    rect,
+                    native_color(
+                        u32::from_ne_bytes([color.r, color.g, color.b, color.a]),
+                        &self.surface_format,
+                    ),
+                ),
             }
         }
     }
@@ -215,7 +223,7 @@ impl State {
         let mut viewport = Dimensions::default();
         viewport.content.height = output_texture.texture.height() as f32;
         viewport.content.width = output_texture.texture.width() as f32;
-        self.paint(self.root_node.clone(), viewport);
+        self.paint(viewport);
 
         let vertex_buf = self
             .device
@@ -274,4 +282,39 @@ pub fn point(x: f32, y: f32, screen: (f32, f32)) -> [f32; 2] {
     let new_x = -1. + (x * scale_x);
     let new_y = 1. - (y * scale_y);
     [new_x, new_y]
+}
+
+fn native_color(c: u32, format: &TextureFormat) -> [f32; 4] {
+    use wgpu::TextureFormat::*;
+    let f = |xu: u32| (xu & 0xff) as f32 / 255.0;
+
+    match format {
+        Rgba8UnormSrgb => hex_to_linear_rgba(c),
+        Bgra8UnormSrgb => hex_to_linear_bgra(c),
+        _ => [f(c >> 16), f(c >> 8), f(c), 1.0],
+    }
+}
+
+fn hex_to_linear_rgba(c: u32) -> [f32; 4] {
+    let f = |xu: u32| {
+        let x = (xu & 0xff) as f32 / 255.0;
+        if x > 0.04045 {
+            ((x + 0.055) / 1.055).powf(2.4)
+        } else {
+            x / 12.92
+        }
+    };
+    [f(c >> 16), f(c >> 8), f(c >> 0), 1.0]
+}
+
+fn hex_to_linear_bgra(c: u32) -> [f32; 4] {
+    let f = |xu: u32| {
+        let x = (xu & 0xff) as f32 / 255.0;
+        if x > 0.04045 {
+            ((x + 0.055) / 1.055).powf(2.4)
+        } else {
+            x / 12.92
+        }
+    };
+    [f(c >> 0), f(c >> 8), f(c >> 16), 1.0]
 }

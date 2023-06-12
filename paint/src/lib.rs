@@ -3,6 +3,7 @@ use benser::layout::{BoxType, LayoutBox, Rect};
 
 type DisplayList = Vec<DisplayCommand>;
 
+#[derive(Debug)]
 pub enum DisplayCommand {
     SolidColor(Color, Rect),
 }
