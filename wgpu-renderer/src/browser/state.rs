@@ -1,5 +1,6 @@
 use crate::{file_output::Vertex, wgpu_util::get_gpu_instance};
-use benser::layout::Rect;
+use benser::layout::{layout_tree, Dimensions, Rect};
+use benser::style::StyledNode;
 use lyon::{
     geom::{euclid::Point2D, Box2D},
     lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers},
@@ -12,7 +13,7 @@ use wgpu_text::{
 };
 use winit::{event::WindowEvent, window::Window};
 
-pub struct State {
+pub struct State<'a> {
     window: Window,
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -22,10 +23,11 @@ pub struct State {
     lyon_buffer: VertexBuffers<Vertex, u16>,
     pub window_size: winit::dpi::PhysicalSize<u32>,
     pub text_brush: TextBrush,
+    root_node: StyledNode<'a>,
 }
 
-impl State {
-    pub async fn new(window: Window) -> Self {
+impl<'a> State<'a> {
+    pub async fn new(window: Window, root_node: StyledNode<'a>) -> State<'a> {
         let size = window.inner_size();
         let instance = get_gpu_instance();
 
@@ -120,6 +122,7 @@ impl State {
             config,
             window_size: size,
             text_brush: brush,
+            root_node: root_node,
         }
     }
 
@@ -192,11 +195,16 @@ impl State {
         // Lyon
         self.lyon_buffer.indices.clear();
         self.lyon_buffer.vertices.clear();
-        // Dummy rect
+        // Draw shapes into the lyon_buffer here
+        let mut viewport = Dimensions::default();
+        viewport.content.height = output_texture.texture.height() as f32;
+        viewport.content.width = output_texture.texture.width() as f32;
+        let layout_root = layout_tree(&self.root_node, viewport);
+
         self.draw_rectangle(
             Rect {
-                x: 0.0,
-                y: 0.0,
+                x: 100.0,
+                y: 100.0,
                 height: 100.0,
                 width: 100.0,
             },

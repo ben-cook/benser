@@ -1,7 +1,11 @@
 mod state;
 
 use crate::args::Args;
+use benser::css::Parser as css_parser;
+use benser::style::style_tree;
+use html::parser::Parser as html_parser;
 use state::State;
+use std::fs;
 use winit::event::WindowEvent;
 use winit::{
     event::*,
@@ -16,7 +20,14 @@ pub async fn run(args: Args) {
         .build(&event_loop)
         .unwrap();
 
-    let mut state = State::new(window).await;
+    let css_source = fs::read_to_string(args.css_file).unwrap();
+    let html_source = fs::read_to_string(args.html_file).unwrap();
+
+    let root_node = html_parser::from_string(&html_source).run();
+    let stylesheet = css_parser::parse(&css_source);
+    let style_root = style_tree(&root_node, &stylesheet);
+
+    let mut state: State<'_> = State::new(window, style_root).await;
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(window_id) if window_id == state.window().id() => {

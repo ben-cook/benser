@@ -26,9 +26,9 @@ pub struct Parser<'a> {
 }
 
 impl Parser<'_> {
-    pub fn from_string(input: String) -> Self {
+    pub fn from_string(input: &str) -> Self {
         Parser {
-            input,
+            input: input.to_owned(),
             pos: 0,
             encoding: Encoding::Utf8,
             confidence: Confidence::Certain,
@@ -207,12 +207,12 @@ mod tests {
     #[test]
     fn basic_tests() {
         assert_eq!(
-            Parser::from_string("<div></div>".to_string()).run(),
+            Parser::from_string("<div></div>").run(),
             Node::elem("div".to_string(), HashMap::new(), Vec::new())
         );
 
         assert_eq!(
-            Parser::from_string("<html><body>Hello, world!</body></html>".to_string()).run(),
+            Parser::from_string("<html><body>Hello, world!</body></html>").run(),
             Node::elem(
                 "html".to_string(),
                 HashMap::new(),
@@ -232,7 +232,7 @@ mod tests {
         attribute_map.insert("width".to_string(), "100%".to_string());
 
         assert_eq!(
-            Parser::from_string(r#"<div height="3" width="100%"></div>"#.to_string()).run(),
+            Parser::from_string(r#"<div height="3" width="100%"></div>"#).run(),
             Node::elem("div".to_string(), attribute_map, Vec::new())
         );
     }
@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn adds_root_node() {
         assert_eq!(
-            Parser::from_string("<h1>Heading 1</h1> <h2>Heading 2</h2>".to_string()).run(),
+            Parser::from_string("<h1>Heading 1</h1> <h2>Heading 2</h2>").run(),
             Node::elem(
                 "html".to_string(),
                 HashMap::new(),

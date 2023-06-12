@@ -56,8 +56,8 @@ pub async fn run(args: Args) {
     }
 
     // Parsing and rendering:
-    let root_node = html_parser::from_string(html_source).run();
-    let stylesheet = css_parser::parse(css_source);
+    let root_node = html_parser::from_string(&html_source).run();
+    let stylesheet = css_parser::parse(&css_source);
     let style_root = style_tree(&root_node, &stylesheet);
     let layout_root = layout_tree(&style_root, viewport);
 
