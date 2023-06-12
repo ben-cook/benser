@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::css::{Rule, Selector, SimpleSelector, Specificity, Stylesheet, Value};
 use crate::layout::Display;
@@ -8,13 +9,13 @@ use html::dom::{ElementData, Node, NodeType};
 type PropertyMap = HashMap<String, Value>;
 
 /// A node with associated style data.
-pub struct StyledNode<'a> {
-    node: &'a Node, // pointer to a DOM node
+pub struct StyledNode {
+    node: Arc<Node>, // pointer to a DOM node
     specified_values: PropertyMap,
-    pub children: Vec<StyledNode<'a>>,
+    pub children: Vec<StyledNode>,
 }
 
-impl<'a> StyledNode<'a> {
+impl StyledNode {
     // Return the specified value of a property if it exists, otherwise `None`.
     pub fn value(&self, name: &str) -> Option<Value> {
         self.specified_values.get(name).cloned()
@@ -108,14 +109,15 @@ fn specified_values(elem: &ElementData, stylesheet: &Stylesheet) -> PropertyMap 
 }
 
 // Apply a stylesheet to an entire DOM tree, returning a StyledNode tree.
-pub fn style_tree<'a>(root: &'a Node, stylesheet: &'a Stylesheet) -> StyledNode<'a> {
+pub fn style_tree<'a>(root: &'a Node, stylesheet: &'a Stylesheet) -> StyledNode {
     StyledNode {
-        node: root,
-        specified_values: match root.node_type {
+        node: Arc::new(root.clone()),
+        specified_values: match root.clone().node_type {
             NodeType::Element(ref elem) => specified_values(elem, stylesheet),
             _ => HashMap::new(),
         },
         children: root
+            .clone()
             .children
             .iter()
             .map(|child| style_tree(child, stylesheet))

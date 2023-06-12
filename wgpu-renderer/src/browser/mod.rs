@@ -1,27 +1,26 @@
-use browser::State;
-use wgpu_text::section::{Section, Text};
+mod state;
+
+use std::sync::Arc;
+
+use crate::args::Args;
+
+use benser::style::StyledNode;
+use state::State;
+use winit::event::WindowEvent;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
-fn main() {
-    pollster::block_on(run());
-}
-
-pub async fn run() {
-    env_logger::init();
+pub async fn run(style_root: Arc<StyledNode>) {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("benser")
         .build(&event_loop)
         .unwrap();
 
-    let mut state = State::new(window).await;
-
-    // Directly implemented from glyph_brush.
-    let section = Section::default().add_text(Text::new("Hello World"));
+    let mut state = State::new(window, style_root).await;
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::RedrawRequested(window_id) if window_id == state.window().id() => {
@@ -29,7 +28,7 @@ pub async fn run() {
             match state.render() {
                 Ok(_) => {}
                 // Reconfigure the surface if lost
-                Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                Err(wgpu::SurfaceError::Lost) => state.resize(state.window_size),
                 // The system is out of memory, we should probably quit
                 Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                 // All other errors (Outdated, Timeout) should be resolved by the next frame

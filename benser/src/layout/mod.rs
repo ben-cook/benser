@@ -11,8 +11,8 @@ pub use rect::Rect;
 use crate::style::StyledNode;
 
 pub enum BoxType<'a> {
-    BlockNode(&'a StyledNode<'a>),
-    InlineNode(&'a StyledNode<'a>),
+    BlockNode(&'a StyledNode),
+    InlineNode(&'a StyledNode),
     AnonymousBlock,
 }
 
@@ -23,10 +23,7 @@ pub enum Display {
 }
 
 /// Transform a style tree into a layout tree.
-pub fn layout_tree<'a>(
-    node: &'a StyledNode<'a>,
-    mut containing_block: Dimensions,
-) -> LayoutBox<'a> {
+pub fn layout_tree<'a>(node: &'a StyledNode, mut containing_block: Dimensions) -> LayoutBox<'a> {
     // The layout algorithm expects the container height to start at 0.
     // TODO: Save the initial containing block height, for calculating percent heights.
     containing_block.content.height = 0.0;
@@ -37,7 +34,7 @@ pub fn layout_tree<'a>(
 }
 
 // Build the tree of LayoutBoxes, but don't perform any layout calculations yet.
-fn build_layout_tree<'a>(style_node: &'a StyledNode<'a>) -> LayoutBox<'a> {
+fn build_layout_tree<'a>(style_node: &'a StyledNode) -> LayoutBox<'a> {
     // Create the root box.
     let mut root = LayoutBox::new(match style_node.display() {
         Display::Block => BoxType::BlockNode(style_node),

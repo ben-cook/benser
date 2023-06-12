@@ -11,7 +11,7 @@ pub struct Args {
     pub html_file: PathBuf,
 
     /// File to output to
-    pub output: PathBuf,
+    pub output: Option<PathBuf>,
 
     /// Viewport width
     #[arg(long = "width")]

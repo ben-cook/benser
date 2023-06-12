@@ -7,10 +7,10 @@ pub struct Parser {
 
 impl Parser {
     /// Parse a whole CSS stylesheet.
-    pub fn parse(source: String) -> Stylesheet {
+    pub fn parse(source: &str) -> Stylesheet {
         let mut parser = Parser {
             pos: 0,
-            input: source,
+            input: source.to_owned(),
         };
         Stylesheet {
             rules: parser.parse_rules(),
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn one_line() {
         assert_eq!(
-            Parser::parse("h1, h2, h3 { margin: auto; color: #cc0000; }".to_string()),
+            Parser::parse("h1, h2, h3 { margin: auto; color: #cc0000; }"),
             Stylesheet {
                 rules: vec![Rule {
                     selectors: vec![
@@ -256,7 +256,6 @@ mod tests {
             Parser::parse(
                 "div.note { margin-bottom: 20px; padding: 10px; }
                  #answer { display: none; }"
-                    .to_string()
             ),
             Stylesheet {
                 rules: vec![
