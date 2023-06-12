@@ -1,0 +1,15 @@
+div {
+    display: block;
+}
+
+.container {
+    margin: 100px;
+}
+
+.content{
+    display: block;
+    height: 100px;
+    width: 100px;
+    margin: 12px;
+    background: #00ff00;
+}
